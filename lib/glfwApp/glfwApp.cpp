@@ -52,6 +52,7 @@ void glfwApp::initVulkan() {
         this->initSurface();
         this->initVulkanDevice();
         this->initSwapChain();
+        this->initGraphicsPipeline();
         this->initFramebuffer();
     } catch (...) {
         std::throw_with_nested("Failed to initialize Vulkan");
@@ -362,6 +363,10 @@ void glfwApp::initSwapChain() {
     } catch(...) {
         std::throw_with_nested("failed to create swap chain");
     }
+}
+
+void glfwApp::initGraphicsPipeline() {
+
 }
 
 void glfwApp::initFramebuffer() {

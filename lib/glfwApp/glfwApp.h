@@ -45,6 +45,7 @@ namespace glfw {
         void initSurface();
         void initSwapChain();
         void initFramebuffer();
+        void initGraphicsPipeline();
 
         static int rateDeviceSuitability(VkPhysicalDevice device, VkSurfaceKHR surface);
         static QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);

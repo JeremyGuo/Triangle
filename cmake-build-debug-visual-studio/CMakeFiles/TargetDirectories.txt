@@ -1,6 +1,0 @@
-C:/Users/JeremyGuo/Documents/Vulkan/Triangle/cmake-build-debug-visual-studio/CMakeFiles/main.dir
-C:/Users/JeremyGuo/Documents/Vulkan/Triangle/cmake-build-debug-visual-studio/CMakeFiles/edit_cache.dir
-C:/Users/JeremyGuo/Documents/Vulkan/Triangle/cmake-build-debug-visual-studio/CMakeFiles/rebuild_cache.dir
-C:/Users/JeremyGuo/Documents/Vulkan/Triangle/cmake-build-debug-visual-studio/lib/glfwApp/CMakeFiles/glfwApp.dir
-C:/Users/JeremyGuo/Documents/Vulkan/Triangle/cmake-build-debug-visual-studio/lib/glfwApp/CMakeFiles/edit_cache.dir
-C:/Users/JeremyGuo/Documents/Vulkan/Triangle/cmake-build-debug-visual-studio/lib/glfwApp/CMakeFiles/rebuild_cache.dir

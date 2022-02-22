@@ -1,4 +1,0 @@
-C:\Users\JeremyGuo\scoop\shims\cmake.exe -DCMAKE_BUILD_TYPE=Debug -G Ninja -DCMAKE_TOOLCHAIN_FILE=C:/src/vcpkg/scripts/buildsystems/vcpkg.cmake C:\Users\JeremyGuo\Documents\Vulkan\Triangle
--- Configuring done
--- Generating done
--- Build files have been written to: C:/Users/JeremyGuo/Documents/Vulkan/Triangle/cmake-build-debug-visual-studio
