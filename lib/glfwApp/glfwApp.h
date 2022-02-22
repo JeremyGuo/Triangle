@@ -44,8 +44,9 @@ namespace glfw {
         void initVulkanDevice();
         void initSurface();
         void initSwapChain();
-        void initFramebuffer();
-        void initGraphicsPipeline();
+
+        virtual void onDraw() = 0;
+        virtual void onUpdate() = 0;
 
         static int rateDeviceSuitability(VkPhysicalDevice device, VkSurfaceKHR surface);
         static QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
@@ -73,6 +74,5 @@ namespace glfw {
         VkFormat swapChainImageFormat;
         VkExtent2D swapChainExtent;
         std::vector<VkImageView> swapChainImageViews;
-        std::vector<VkFramebuffer> swapChainFramebuffers;
     };
 }

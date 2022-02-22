@@ -52,8 +52,6 @@ void glfwApp::initVulkan() {
         this->initSurface();
         this->initVulkanDevice();
         this->initSwapChain();
-        this->initGraphicsPipeline();
-        this->initFramebuffer();
     } catch (...) {
         std::throw_with_nested("Failed to initialize Vulkan");
     }
@@ -89,7 +87,7 @@ void glfwApp::initVulkanInst() {
 
     VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
     if (result != VK_SUCCESS)
-        std::throw_with_nested("Failed to create instance");
+        std::throw_with_nested("failed to create instance");
 }
 
 void glfwApp::initVulkanDevice() {
@@ -362,35 +360,5 @@ void glfwApp::initSwapChain() {
         }
     } catch(...) {
         std::throw_with_nested("failed to create swap chain");
-    }
-}
-
-void glfwApp::initGraphicsPipeline() {
-
-}
-
-void glfwApp::initFramebuffer() {
-    try {
-//        swapChainFramebuffers.resize(swapChainImageViews.size());
-//        for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-//            VkImageView attachments[] = {
-//                    swapChainImageViews[i]
-//            };
-//
-//            VkFramebufferCreateInfo framebufferInfo{};
-//            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-//            framebufferInfo.renderPass = renderPass;
-//            framebufferInfo.attachmentCount = 1;
-//            framebufferInfo.pAttachments = attachments;
-//            framebufferInfo.width = swapChainExtent.width;
-//            framebufferInfo.height = swapChainExtent.height;
-//            framebufferInfo.layers = 1;
-//
-//            if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-//                throw std::runtime_error("failed to create framebuffer!");
-//            }
-//        }
-    } catch(...) {
-        std::throw_with_nested("failed to init framebuffer");
     }
 }
