@@ -19,7 +19,7 @@ namespace glfw {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
 
-        bool isComplete();
+        bool isComplete() const;
     };
 
     struct SwapChainSupportDetails {
@@ -30,11 +30,14 @@ namespace glfw {
 
     class glfwApp {
     public:
+        bool framebufferResized = false;
+
         glfwApp();
         virtual ~glfwApp();
         glfwApp(const glfwApp&) = delete;
 
-        void initialize();
+        virtual void initialize();
+        virtual void cleanup();
         void run();
     protected:
         void initWindow();
@@ -44,6 +47,9 @@ namespace glfw {
         void initVulkanDevice();
         void initSurface();
         void initSwapChain();
+
+        virtual void recreateSwapChain();
+        virtual void cleanupSwapChain();
 
         virtual void onDraw() = 0;
         virtual void onUpdate() = 0;
@@ -65,14 +71,14 @@ namespace glfw {
         VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
         VkDevice device = VK_NULL_HANDLE;
 
-        VkQueue graphicsQueue;
-        VkQueue presentQueue;
+        VkQueue graphicsQueue{};
+        VkQueue presentQueue{};
 
-        VkSurfaceKHR surface;
-        VkSwapchainKHR swapChain;
+        VkSurfaceKHR surface{};
+        VkSwapchainKHR swapChain{};
         std::vector<VkImage> swapChainImages;
         VkFormat swapChainImageFormat;
-        VkExtent2D swapChainExtent;
+        VkExtent2D swapChainExtent{};
         std::vector<VkImageView> swapChainImageViews;
     };
 }

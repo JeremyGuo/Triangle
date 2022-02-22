@@ -5,7 +5,7 @@
 #include "glfwApp.h"
 using namespace glfw;
 
-bool QueueFamilyIndices::isComplete() {
+bool QueueFamilyIndices::isComplete() const {
     return graphicsFamily.has_value() && presentFamily.has_value();
 }
 
@@ -14,6 +14,18 @@ glfwApp::glfwApp() {
 }
 
 glfwApp::~glfwApp() {
+    for (auto imageView : swapChainImageViews) {
+        vkDestroyImageView(device, imageView, nullptr);
+    }
+    vkDestroySwapchainKHR(device, swapChain, nullptr);
+    vkDestroySurfaceKHR(instance, surface, nullptr);
+    vkDestroyDevice(device, nullptr);
+    vkDestroyInstance(instance, nullptr);
+    glfwDestroyWindow(window);
+    glfwTerminate();
+}
+
+void glfwApp::cleanup() {
     for (auto imageView : swapChainImageViews) {
         vkDestroyImageView(device, imageView, nullptr);
     }
@@ -39,13 +51,20 @@ void glfwApp::run() {
     vkDeviceWaitIdle(device);
 }
 
+static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+    auto app = reinterpret_cast<glfwApp*>(glfwGetWindowUserPointer(window));
+    app->framebufferResized = true;
+}
+
 void glfwApp::initWindow() {
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+//    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     window = glfwCreateWindow(width, height, "Vulkan", nullptr, nullptr);
+    glfwSetWindowUserPointer(window, this);
+    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 }
 
 void glfwApp::initVulkan() {
@@ -377,4 +396,16 @@ void glfwApp::initSwapChain() {
     } catch(...) {
         std::throw_with_nested(std::runtime_error("failed to create swap chain"));
     }
+}
+
+void glfwApp::cleanupSwapChain() {
+    for (size_t i = 0; i < swapChainImageViews.size(); i++)
+        vkDestroyImageView(device, swapChainImageViews[i], nullptr);
+    vkDestroySwapchainKHR(device, swapChain, nullptr);
+}
+
+void glfwApp::recreateSwapChain() {
+    vkDeviceWaitIdle(device);
+    this->cleanupSwapChain();
+    this->initSwapChain();
 }
