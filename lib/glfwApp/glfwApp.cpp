@@ -34,7 +34,9 @@ void glfwApp::run() {
     std::cout << "Started to run" << std::endl;
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        this->onDraw();
     }
+    vkDeviceWaitIdle(device);
 }
 
 void glfwApp::initWindow() {
@@ -53,7 +55,7 @@ void glfwApp::initVulkan() {
         this->initVulkanDevice();
         this->initSwapChain();
     } catch (...) {
-        std::throw_with_nested("Failed to initialize Vulkan");
+        std::throw_with_nested(std::runtime_error("Failed to initialize Vulkan"));
     }
 }
 
@@ -87,7 +89,7 @@ void glfwApp::initVulkanInst() {
 
     VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
     if (result != VK_SUCCESS)
-        std::throw_with_nested("failed to create instance");
+        std::throw_with_nested(std::runtime_error("failed to create instance"));
 }
 
 void glfwApp::initVulkanDevice() {
@@ -98,17 +100,21 @@ void glfwApp::initVulkanDevice() {
         uint32_t deviceCount;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
         if (deviceCount == 0)
-            std::throw_with_nested("Failed to find GPU device");
+            std::throw_with_nested(std::runtime_error("Failed to find GPU device"));
+        std::cout << "Device Count: " << deviceCount << std::endl;
         std::vector<VkPhysicalDevice> devices(deviceCount);
         vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
         int maxScore = 0;
         for (auto &_device : devices) {
             int curScore = rateDeviceSuitability(_device, surface);
-            if (curScore > maxScore)
+            if (curScore > maxScore) {
+                std::cout << "Updated physical device" << std::endl;
                 physicalDevice = _device;
+                maxScore = curScore;
+            }
         }
         if (!physicalDevice)
-            std::throw_with_nested("No suitable GPU found.");
+            std::throw_with_nested(std::runtime_error("No suitable GPU found."));
     }
 
     {
@@ -141,7 +147,7 @@ void glfwApp::initVulkanDevice() {
         createInfo.ppEnabledExtensionNames = vkDeviceExtensions.data();
         createInfo.enabledLayerCount = 0;
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
-            std::throw_with_nested("failed to create logical device!");
+            std::throw_with_nested(std::runtime_error("failed to create logical device!"));
         }
     }
 
@@ -188,18 +194,28 @@ int glfwApp::rateDeviceSuitability(VkPhysicalDevice device, VkSurfaceKHR surface
         score += 1000;
     }
     score += static_cast<int>(deviceProperties.limits.maxImageDimension2D);
+    std::cout << deviceProperties.deviceName << " Supported max image dimension 2D: " << deviceProperties.limits.maxImageDimension2D << std::endl;
+#ifndef __APPLE__
     if (!deviceFeatures.geometryShader) {
+        std::cout << deviceProperties.deviceName << " Geometry Shader not supported" << std::endl;
         return 0;
     }
-    if (!checkDeviceExtensionSupport(device))
+#endif
+    if (!checkDeviceExtensionSupport(device)) {
+        std::cout << deviceProperties.deviceName << " Extension not supported" << std::endl;
         return 0;
+    }
     /** Swap chain Extension check **/
     SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device, surface);
-    if (swapChainSupport.presentModes.empty() || swapChainSupport.formats.empty())
+    if (swapChainSupport.presentModes.empty() || swapChainSupport.formats.empty()) {
+        std::cout << deviceProperties.deviceName << " No valid swap chain feature" << std::endl;
         return 0;
+    }
     QueueFamilyIndices indices = findQueueFamilies(device, surface);
-    if (!indices.isComplete())
+    if (!indices.isComplete()) {
+        std::cout << deviceProperties.deviceName << " No valid queue" << std::endl;
         return 0;
+    }
     return score;
 }
 
@@ -210,9 +226,9 @@ void glfwApp::initSurface() {
 //    createInfo.hinstance = GetModuleHandle(nullptr);
 //
 //    if (vkCreateWin32SurfaceKHR(instance, &createInfo, nullptr, &surface) != VK_SUCCESS)
-//        std::throw_with_nested("failed to create surface");
+//        std::throw_with_nested(std::runtime_error("failed to create surface"));
     if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
-        std::throw_with_nested("failed to create surface");
+        std::throw_with_nested(std::runtime_error("failed to create surface"));
 }
 
 bool glfwApp::checkDeviceExtensionSupport(VkPhysicalDevice device) {
@@ -229,17 +245,17 @@ bool glfwApp::checkDeviceExtensionSupport(VkPhysicalDevice device) {
 SwapChainSupportDetails glfwApp::querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
     SwapChainSupportDetails details;
     if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities) != VK_SUCCESS)
-        std::throw_with_nested("failed to get swap chain capability");
+        std::throw_with_nested(std::runtime_error("failed to get swap chain capability"));
     uint32_t formatCount;
     if (vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr) != VK_SUCCESS)
-        std::throw_with_nested("failed to get surface format");
+        std::throw_with_nested(std::runtime_error("failed to get surface format"));
     if (formatCount != 0) {
         details.formats.resize(formatCount);
         vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, details.formats.data());
     }
     uint32_t presentModeCount;
     if (vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr) != VK_SUCCESS)
-        std::throw_with_nested("failed to get device present mode");
+        std::throw_with_nested(std::runtime_error("failed to get device present mode"));
     if (presentModeCount != 0) {
         details.presentModes.resize(presentModeCount);
         vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
@@ -326,7 +342,7 @@ void glfwApp::initSwapChain() {
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
         if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
-            std::throw_with_nested("failed to call vkCreateSwapChainKHR()");
+            std::throw_with_nested(std::runtime_error("failed to call vkCreateSwapChainKHR()"));
         }
 
         vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
@@ -355,10 +371,10 @@ void glfwApp::initSwapChain() {
             createInfo.subresourceRange.layerCount = 1;
 
             if (vkCreateImageView(device, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-                std::throw_with_nested("failed to create image views!");
+                std::throw_with_nested(std::runtime_error("failed to create image views!"));
             }
         }
     } catch(...) {
-        std::throw_with_nested("failed to create swap chain");
+        std::throw_with_nested(std::runtime_error("failed to create swap chain"));
     }
 }
