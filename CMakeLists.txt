@@ -22,3 +22,8 @@ add_executable(unibuf src/unibuf.cpp)
 target_link_libraries(unibuf PUBLIC glfwApp)
 target_shader(unibuf unibuf vert)
 target_shader(unibuf unibuf frag)
+
+add_executable(texbuf src/texbuf.cpp)
+target_link_libraries(texbuf PUBLIC glfwApp)
+target_shader(texbuf texbuf vert)
+target_shader(texbuf texbuf frag)
