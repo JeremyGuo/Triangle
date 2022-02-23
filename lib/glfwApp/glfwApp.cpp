@@ -148,6 +148,7 @@ void glfwApp::initVulkanDevice() {
         }
 
         VkPhysicalDeviceFeatures deviceFeatures{};
+        deviceFeatures.samplerAnisotropy = VK_TRUE;
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -227,6 +228,14 @@ int glfwApp::rateDeviceSuitability(VkPhysicalDevice device, VkSurfaceKHR surface
         std::cout << deviceProperties.deviceName << " No valid queue" << std::endl;
         return 0;
     }
+
+    VkPhysicalDeviceFeatures supportedFeatures;
+    vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+    if (!supportedFeatures.samplerAnisotropy) {
+        std::cout << deviceProperties.deviceName << " Device not support anisotropy sampler" << std::endl;
+        return 0;
+    }
+
     return score;
 }
 
