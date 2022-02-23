@@ -45,18 +45,6 @@ protected:
 };
 
 MyApp::~MyApp() {
-    for (auto &frame : frameInfos) {
-        vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
-        vkDestroySemaphore(device, frame.renderFinishedSemaphore, nullptr);
-        vkDestroyFence(device, frame.inFlightFence, nullptr);
-    }
-    vkDestroyCommandPool(device, commandPool, nullptr);
-    for (auto framebuffer : swapChainFramebuffers) {
-        vkDestroyFramebuffer(device, framebuffer, nullptr);
-    }
-    vkDestroyPipeline(device, graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-    vkDestroyRenderPass(device, renderPass, nullptr);
 }
 
 void MyApp::cleanup() {
@@ -80,6 +68,7 @@ int main(int argc, char **argv) {
     try {
         myApp.initialize();
         myApp.run();
+        myApp.cleanup();
     } catch (std::exception& e) {
         printException(e);
     }

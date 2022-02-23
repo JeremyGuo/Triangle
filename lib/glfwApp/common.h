@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <array>
+#include <chrono>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>

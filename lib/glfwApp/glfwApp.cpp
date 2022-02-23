@@ -14,15 +14,6 @@ glfwApp::glfwApp() {
 }
 
 glfwApp::~glfwApp() {
-    for (auto imageView : swapChainImageViews) {
-        vkDestroyImageView(device, imageView, nullptr);
-    }
-    vkDestroySwapchainKHR(device, swapChain, nullptr);
-    vkDestroySurfaceKHR(instance, surface, nullptr);
-    vkDestroyDevice(device, nullptr);
-    vkDestroyInstance(instance, nullptr);
-    glfwDestroyWindow(window);
-    glfwTerminate();
 }
 
 void glfwApp::cleanup() {
@@ -46,6 +37,7 @@ void glfwApp::run() {
     std::cout << "Started to run" << std::endl;
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        this->onUpdate();
         this->onDraw();
     }
     vkDeviceWaitIdle(device);

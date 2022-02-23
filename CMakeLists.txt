@@ -8,12 +8,17 @@ add_subdirectory(shaders)
 
 include_directories(include)
 
-add_executable(main src/main.cpp)
-target_link_libraries(main PUBLIC glfwApp)
-target_shader(main triangle vert)
-target_shader(main triangle frag)
+add_executable(triangle src/triangle.cpp)
+target_link_libraries(triangle PUBLIC glfwApp)
+target_shader(triangle triangle vert)
+target_shader(triangle triangle frag)
 
 add_executable(vertbuf src/vertbuf.cpp)
 target_link_libraries(vertbuf PUBLIC glfwApp)
 target_shader(vertbuf vertbuf vert)
 target_shader(vertbuf vertbuf frag)
+
+add_executable(unibuf src/unibuf.cpp)
+target_link_libraries(unibuf PUBLIC glfwApp)
+target_shader(unibuf unibuf vert)
+target_shader(unibuf unibuf frag)
