@@ -27,3 +27,8 @@ add_executable(texbuf src/texbuf.cpp)
 target_link_libraries(texbuf PUBLIC glfwApp)
 target_shader(texbuf texbuf vert)
 target_shader(texbuf texbuf frag)
+
+add_executable(depth src/depth.cpp)
+target_link_libraries(depth PUBLIC glfwApp)
+target_shader(depth depth vert)
+target_shader(depth depth frag)
