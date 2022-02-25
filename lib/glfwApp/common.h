@@ -22,6 +22,7 @@
 #include <GLFW/glfw3.h>
 
 #include "stb_image.h"
+#include "tiny_obj_loader.h"
 
 static
 void printException(const std::exception& e, int level =  0) {

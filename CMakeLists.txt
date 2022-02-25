@@ -32,3 +32,8 @@ add_executable(depth src/depth.cpp)
 target_link_libraries(depth PUBLIC glfwApp)
 target_shader(depth depth vert)
 target_shader(depth depth frag)
+
+add_executable(object src/object.cpp)
+target_link_libraries(object PUBLIC glfwApp)
+target_shader(object object vert)
+target_shader(object object frag)
