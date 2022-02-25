@@ -7,6 +7,13 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
+
+#include <unordered_map>
+
+const std::string MODEL_PATH = "../models/viking_room.obj";
+const std::string TEXTURE_PATH = "../textures/viking_room.png";
 
 struct UniformBufferObject {
     glm::mat4 model;
@@ -45,7 +52,21 @@ struct Vertex {
         attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
         return attributeDescriptions;
     }
+
+    bool operator==(const Vertex& other) const {
+        return pos == other.pos && color == other.color && texCoord == other.texCoord;
+    }
 };
+
+namespace std {
+    template<> struct hash<Vertex> {
+        size_t operator()(Vertex const& vertex) const {
+            return ((hash<glm::vec3>()(vertex.pos) ^
+                     (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+                   (hash<glm::vec2>()(vertex.texCoord) << 1);
+        }
+    };
+}
 
 //const std::vector<Vertex> vertices = {
 //        {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
@@ -59,22 +80,26 @@ struct Vertex {
 //        {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
 //};
 
-const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+//const std::vector<Vertex> vertices = {
+//        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+//        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+//        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+//        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+//
+//        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+//        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+//        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+//        {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+//};
 
-        {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-        {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-        {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-        {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
-};
+std::vector<Vertex> vertices;
 
-const std::vector<uint16_t> indices = {
-        0, 1, 2, 2, 3, 0,
-        4, 5, 6, 6, 7, 4
-};
+//const std::vector<uint32_t> indices = {
+//        0, 1, 2, 2, 3, 0,
+//        4, 5, 6, 6, 7, 4
+//};
+
+std::vector<uint32_t> indices;
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -101,6 +126,7 @@ protected:
     void initFramebuffers();
     void initCommandPool();
     void initDepthBuffer();
+    void initModel();
     void initBuffers();
     void initDescriptorPool();
     void initDescriptorSets();
@@ -112,7 +138,7 @@ protected:
     void cleanupSwapChain() override;
     void recreateSwapChain() override;
 
-    void recordCommandBuffer(VkCommandBuffer cb, int imageIndex, VkDescriptorSet &descSet);
+    void recordCommandBuffer(VkCommandBuffer cb, int imageIndex, VkDescriptorSet &descriptorSet);
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -216,6 +242,7 @@ void MyApp::initialize() {
         this->initTexture();
         this->initTextureView();
         this->initTextureSampler();
+        this->initModel();
         this->initBuffers();
         this->initDescriptorPool();
         this->initDescriptorSets();
@@ -253,7 +280,7 @@ void MyApp::recordCommandBuffer(VkCommandBuffer cb, int imageIndex, VkDescriptor
     VkBuffer vertexBuffers[] = {vertexBuffer};
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(cb, 0, 1, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(cb, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindIndexBuffer(cb, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
 //    vkCmdDraw(cb, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
@@ -839,7 +866,7 @@ void MyApp::initDescriptorSets() {
 
 void MyApp::initTexture() {
     int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load("../textures/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load(TEXTURE_PATH.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     VkDeviceSize imageSize = texWidth * texHeight * 4;
     if (!pixels)
         throw std::runtime_error("failed to load texture image!");
@@ -1122,4 +1149,46 @@ void MyApp::initDepthBuffer() {
     createImage(swapChainExtent.width, swapChainExtent.height, depthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
     depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
     transitionImageLayout(depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+}
+
+void MyApp::initModel() {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string err;
+
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH.c_str())) {
+        throw std::runtime_error(err);
+    }
+
+    // TODO: optimize
+    std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+    for (const auto& shape : shapes) {
+        for (const auto& index : shape.mesh.indices) {
+            Vertex vertex{};
+
+            vertex.pos = {
+                    attrib.vertices[3 * index.vertex_index + 0],
+                    attrib.vertices[3 * index.vertex_index + 1],
+                    attrib.vertices[3 * index.vertex_index + 2]
+            };
+
+//            vertex.texCoord = {
+//                    attrib.texcoords[2 * index.texcoord_index + 0],
+//                    attrib.texcoords[2 * index.texcoord_index + 1]
+//            };
+            vertex.texCoord = {
+                    attrib.texcoords[2 * index.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+            };
+
+            vertex.color = {1.0f, 1.0f, 1.0f};
+
+            if (uniqueVertices.count(vertex) == 0) {
+                uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+                vertices.push_back(vertex);
+            }
+            indices.push_back(uniqueVertices[vertex]);
+        }
+    }
 }
