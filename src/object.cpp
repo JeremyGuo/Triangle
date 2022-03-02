@@ -1161,7 +1161,6 @@ void MyApp::initModel() {
         throw std::runtime_error(err);
     }
 
-    // TODO: optimize
     std::unordered_map<Vertex, uint32_t> uniqueVertices{};
     for (const auto& shape : shapes) {
         for (const auto& index : shape.mesh.indices) {
