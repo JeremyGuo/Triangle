@@ -7,30 +7,42 @@
 
 #include <common.h>
 
-class Buffer {
-public:
-    Buffer(VkDevice device, VkCommandPool commandPool, VkQueue commandQueue);
-    Buffer(const VkDevice& device) = delete;
+namespace glfw {
+    class glfwApp;
 
-    VkResult        create(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryProperties);
-    void            Destroy();
+    class Buffer {
+    public:
+        Buffer(glfw::glfwApp *app);
 
-    void*           Map(VkDeviceSize size = UINT64_MAX, VkDeviceSize offset = 0) const;
-    void            Unmap() const;
+        Buffer(const Buffer &buffer) = delete;
 
-    bool            UploadData(const void* data, VkDeviceSize size, VkDeviceSize offset = 0) const;
+        virtual ~Buffer();
 
-    VkBuffer getBuffer();
-    VkDeviceSize size();
-protected:
-    VkDevice mDevice;
-    VkBuffer mBuffer;
-    VkDeviceMemory mDeviceMemory;
-    VkDeviceSize mSize;
+        VkResult create(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memoryProperties);
 
-    VkCommandPool mCommandPool;
-    VkQueue mCommandQueue;
-};
+        void destroy();
+
+        void *map(VkDeviceSize size = UINT64_MAX, VkDeviceSize offset = 0) const;
+
+        void unmap() const;
+
+        VkResult uploadData(const void *data, VkDeviceSize size, VkDeviceSize offset = 0) const;
+
+        VkBuffer getBuffer();
+
+        VkDeviceSize size();
+
+        void copyTo(Buffer &dst, VkCommandPool commandPool, VkQueue graphicsQueue, VkDeviceSize size);
+
+    protected:
+        glfw::glfwApp *mApp;
+        VkBuffer mBuffer;
+        VkDeviceMemory mDeviceMemory;
+        VkDeviceSize mSize;
+
+        uint32_t getMemoryType(VkMemoryRequirements &memoryRequiriments, VkMemoryPropertyFlags memoryProperties);
+    };
+}
 
 
 #endif //TRIANGLE_BUFFER_H

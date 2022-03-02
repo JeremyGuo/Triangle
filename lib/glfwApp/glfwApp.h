@@ -9,6 +9,8 @@
 
 #include "common.h"
 
+class Buffer;
+class Texture;
 namespace glfw {
     static
     const std::vector<const char*> vkDeviceExtensions = {
@@ -40,6 +42,8 @@ namespace glfw {
         virtual void cleanup();
         void run();
     protected:
+        friend class Buffer;
+        friend class Texture;
         void initWindow();
 
         void initVulkan();
@@ -61,9 +65,11 @@ namespace glfw {
         static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
         static VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
         static VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window);
+        VkSampleCountFlagBits getMaxUsableSampleCount();
 
         int width = 800;
         int height = 600;
+        VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
         GLFWwindow* window;
 
