@@ -9,25 +9,31 @@
 #include <Buffer.h>
 #include <Texture.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
+
+#include <tiny_obj_loader.h>
+#include <unordered_map>
+#include <Vertex.h>
+
 namespace glfw {
+    class glfwApp;
     class Buffer;
-    struct Mesh {
-        uint32_t numVertices;
-        uint32_t numFaces;
+    class SubMesh;
+    class Mesh {
+    public:
+        Mesh(glfwApp* app);
+        virtual ~Mesh();
 
-        Buffer positions;
-        Buffer attribs;
-        Buffer indices;
-        Buffer faces;
-        Buffer matIDs;
-    };
+        void destroy();
 
-    struct Material {
-        Texture texture;
-    };
+        void loadObject(const char* filename, VkCommandPool commandPool, VkQueue graphicsQueue);
 
-    struct Scene {
-        std::vector<Mesh*>  meshes;
+        Buffer* vertexBuffer;
+        std::vector<SubMesh*> submesh;
+    private:
+        glfwApp* mApp;
     };
 }
 

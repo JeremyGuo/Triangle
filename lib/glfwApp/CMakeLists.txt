@@ -3,7 +3,7 @@ find_package(glfw3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 
-add_library(glfwApp glfwApp.cpp stb_image.h stb_image.cpp tiny_obj_loader.cpp Buffer.cpp Buffer.h Texture.cpp Texture.h Mesh.cpp Mesh.h)
+add_library(glfwApp glfwApp.cpp stb_image.h stb_image.cpp tiny_obj_loader.cpp Buffer.cpp Buffer.h Texture.cpp Texture.h Mesh.cpp Mesh.h Vertex.h SubMesh.cpp SubMesh.h)
 target_include_directories(glfwApp PUBLIC "." ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(glfwApp PUBLIC glfw)
 target_link_libraries(glfwApp PUBLIC glm::glm)

@@ -9,6 +9,9 @@
 
 #include <Buffer.h>
 #include <Texture.h>
+#include <Vertex.h>
+#include <SubMesh.h>
+#include <Mesh.h>
 
 #include <unordered_map>
 
@@ -21,55 +24,6 @@ struct UniformBufferObject {
     glm::mat4 proj;
 };
 
-struct Vertex {
-    glm::vec3 pos;
-    glm::vec3 color;
-    glm::vec2 texCoord;
-
-    static VkVertexInputBindingDescription getBindingDescription() {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(Vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        return bindingDescription;
-    }
-
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-        attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-        attributeDescriptions[2].binding = 0;
-        attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-        return attributeDescriptions;
-    }
-
-    bool operator==(const Vertex& other) const {
-        return pos == other.pos && color == other.color && texCoord == other.texCoord;
-    }
-};
-
-namespace std {
-    template<> struct hash<Vertex> {
-        size_t operator()(Vertex const& vertex) const {
-            return ((hash<glm::vec3>()(vertex.pos) ^
-                     (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
-                   (hash<glm::vec2>()(vertex.texCoord) << 1);
-        }
-    };
-}
-
-std::vector<Vertex> vertices;
-std::vector<uint32_t> indices;
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 struct FrameVkInfo {
@@ -99,7 +53,6 @@ protected:
     void initFramebuffers();
     void initCommandPool();
     void initDepthBuffer();
-    void initModel();
     void initBuffers();
     void initDescriptorPool();
     void initDescriptorSets();
@@ -119,8 +72,7 @@ protected:
     std::vector<VkFramebuffer> swapChainFramebuffers;
     VkCommandPool commandPool;
 
-    glfw::Buffer vertexBuffer;
-    glfw::Buffer indexBuffer;
+    glfw::Mesh mesh;
     std::vector<glfw::Buffer*> uniformBuffers;
 
     VkDescriptorSetLayout descriptorSetLayout;
@@ -134,8 +86,7 @@ protected:
     glfw::Texture depth;
 };
 
-MyApp::MyApp():glfwApp(),
-    vertexBuffer(this), indexBuffer(this),
+MyApp::MyApp():glfwApp(), mesh(this),
     texture(this), depth(this) {
 }
 
@@ -150,8 +101,7 @@ void MyApp::cleanup() {
         vkDestroyFence(device, frame.inFlightFence, nullptr);
     }
     {
-        vertexBuffer.destroy();
-        indexBuffer.destroy();
+        mesh.destroy();
         texture.destroy();
     }
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
@@ -188,8 +138,8 @@ void MyApp::initialize() {
         this->initCommandPool();
         this->initDepthBuffer();
         this->initFramebuffers();
+        mesh.loadObject(MODEL_PATH.c_str(), commandPool, graphicsQueue);
         this->initTexture();
-        this->initModel();
         this->initBuffers();
         this->initDescriptorPool();
         this->initDescriptorSets();
@@ -224,14 +174,15 @@ void MyApp::recordCommandBuffer(VkCommandBuffer cb, int imageIndex, VkDescriptor
     vkCmdBeginRenderPass(cb, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-    VkBuffer vertexBuffers[] = {vertexBuffer.getBuffer()};
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(cb, 0, 1, vertexBuffers, offsets);
-    vkCmdBindIndexBuffer(cb, indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT32);
-    vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+    for (auto& submesh : mesh.submesh) {
+        VkBuffer vertexBuffers[] = {submesh->vertex->getBuffer()};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(cb, 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(cb, submesh->indice->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+        vkCmdDrawIndexed(cb, submesh->numIndices, 1, 0, 0, 0);
+    }
 
-//    vkCmdDraw(cb, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
-    vkCmdDrawIndexed(cb, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
     vkCmdEndRenderPass(cb);
     if (vkEndCommandBuffer(cb) != VK_SUCCESS)
         throw std::runtime_error("failed to record command buffer!");
@@ -605,30 +556,6 @@ void MyApp::initBuffers() {
     try {
         {
             /**
-             * Create Vertex Buffer
-             */
-            glfw::Buffer stagingBuffer(this);
-            VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-            stagingBuffer.create(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-            stagingBuffer.uploadData(vertices.data(), bufferSize, 0);
-            vertexBuffer.create(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-            stagingBuffer.copyTo(vertexBuffer, commandPool, graphicsQueue, bufferSize);
-            stagingBuffer.destroy();
-        }
-        {
-            /**
-             * Create Indices Buffer
-             */
-            VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-            glfw::Buffer stagingBuffer(this);
-            stagingBuffer.create(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-            stagingBuffer.uploadData(indices.data(), bufferSize);
-            indexBuffer.create(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-            stagingBuffer.copyTo(indexBuffer, commandPool, graphicsQueue, bufferSize);
-            stagingBuffer.destroy();
-        }
-        {
-            /**
              * Create Uniform Buffers
              */
             VkDeviceSize bufferSize = sizeof(UniformBufferObject);
@@ -797,36 +724,5 @@ void MyApp::initDepthBuffer() {
         depth.transition(VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, graphicsQueue, commandPool);
     } catch (...) {
         std::throw_with_nested(std::runtime_error("failed to create depth texture"));
-    }
-}
-
-void MyApp::initModel() {
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-    std::string err;
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, MODEL_PATH.c_str())) {
-        throw std::runtime_error(err);
-    }
-    std::unordered_map<Vertex, uint32_t> uniqueVertices{};
-    for (const auto& shape : shapes) {
-        for (const auto& index : shape.mesh.indices) {
-            Vertex vertex{};
-            vertex.pos = {
-                    attrib.vertices[3 * index.vertex_index + 0],
-                    attrib.vertices[3 * index.vertex_index + 1],
-                    attrib.vertices[3 * index.vertex_index + 2]
-            };
-            vertex.texCoord = {
-                    attrib.texcoords[2 * index.texcoord_index + 0],
-                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-            };
-            vertex.color = {1.0f, 1.0f, 1.0f};
-            if (uniqueVertices.count(vertex) == 0) {
-                uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-                vertices.push_back(vertex);
-            }
-            indices.push_back(uniqueVertices[vertex]);
-        }
     }
 }
