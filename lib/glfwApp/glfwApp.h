@@ -44,6 +44,7 @@ namespace glfw {
     protected:
         friend class Buffer;
         friend class Texture;
+        friend class Shader;
         void initWindow();
 
         void initVulkan();

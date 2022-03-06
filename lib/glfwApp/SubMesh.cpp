@@ -13,6 +13,9 @@ namespace glfw {
 
         vertex = NULL;
         indice = NULL;
+
+        mat_name = NULL;
+        material = NULL;
     }
 
     SubMesh::~SubMesh() {

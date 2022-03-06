@@ -20,11 +20,15 @@
 namespace glfw {
     class glfwApp;
     class Buffer;
+    class Material;
     struct SubMesh {
         uint32_t numIndices;
 
         Buffer *vertex;
         Buffer *indice;
+
+        Material* material;
+        char* mat_name;
 
         glfwApp* mApp;
 

@@ -14,6 +14,7 @@
 #include <Mesh.h>
 
 #include <unordered_map>
+#include <Shader.h>
 
 const std::string MODEL_PATH = "../models/viking_room.obj";
 const std::string TEXTURE_PATH = "../textures/viking_room.png";
@@ -256,25 +257,11 @@ void MyApp::onUpdate() {
 }
 
 void MyApp::initGraphicsPipeline() {
-    auto vertShaderCode = readFile("object.vert.spv");
-    auto fragShaderCode = readFile("object.frag.spv");
+    glfw::Shader shader(this);
 
-    auto vertShaderModule = createShaderModule(device, vertShaderCode);
-    auto fragShaderModule = createShaderModule(device, fragShaderCode);
-
-    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = vertShaderModule;
-    vertShaderStageInfo.pName = "main";
-
-    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = fragShaderModule;
-    fragShaderStageInfo.pName = "main";
-
-    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+    shader.loadShaderModule("object.vert.spv", "object.frag.spv");
+    const char* fname = "main";
+    VkPipelineShaderStageCreateInfo shaderStages[] = {shader.getVertStageInfo(fname), shader.getFragStageInfo(fname)};
 
     auto bindingDescription = Vertex::getBindingDescription();
     auto attributeDescriptions = Vertex::getAttributeDescriptions();
@@ -399,9 +386,7 @@ void MyApp::initGraphicsPipeline() {
     if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create graphics pipeline!");
     }
-
-    vkDestroyShaderModule(device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(device, vertShaderModule, nullptr);
+    shader.destroy();
 }
 
 void MyApp::initRenderPass() {
