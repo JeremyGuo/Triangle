@@ -38,6 +38,8 @@ namespace glfw {
         std::unordered_map<Vertex, uint32_t> tmp_vert_pool;
         std::vector<Vertex> tmp_vert;
 
+        fprintf(stdout, "Decoding Mesh\n");
+
         for (auto& shape : shapes) {
             SubMesh* smesh = new SubMesh(mApp);
             smesh->loadSubMesh(shape, attrib, tmp_vert_pool, tmp_vert, this->vertexBuffer, commandPool, graphicsQueue);

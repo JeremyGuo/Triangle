@@ -3,7 +3,14 @@
 //
 
 #include "glfwApp.h"
+#include <chrono>
 using namespace glfw;
+
+const std::vector<const char*> validationLayers = {
+        "VK_LAYER_KHRONOS_validation"
+};
+
+const bool enableValidationLayers = true;
 
 bool QueueFamilyIndices::isComplete() const {
     return graphicsFamily.has_value() && presentFamily.has_value();
@@ -37,6 +44,12 @@ void glfwApp::run() {
     std::cout << "Started to run" << std::endl;
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+        std::chrono::high_resolution_clock::time_point thisCallUpdate = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<float> dur = (thisCallUpdate - lastCallUpdate);
+        deltaTime = dur.count();
+        lastCallUpdate = thisCallUpdate;
+
         this->onUpdate();
         this->onDraw();
     }
@@ -57,6 +70,19 @@ void glfwApp::initWindow() {
     window = glfwCreateWindow(width, height, "Vulkan", nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
+    glfwSetKeyCallback(window, [](GLFWwindow* wnd, int key, int scancode, int action, int mods){
+        glfwApp* app = reinterpret_cast<glfwApp*>(glfwGetWindowUserPointer(wnd));
+        app->onKeyDown(key, scancode, action, mods);
+    });
+    glfwSetMouseButtonCallback(window, [](GLFWwindow* wnd, int button, int action, int mods) {
+        glfwApp* app = reinterpret_cast<glfwApp*>(glfwGetWindowUserPointer(wnd));
+        app->onMouseButton(button, action, mods);
+    });
+    glfwSetCursorPosCallback(window, [](GLFWwindow* wnd, double x, double y) {
+        glfwApp* app = reinterpret_cast<glfwApp*>(glfwGetWindowUserPointer(wnd));
+        app->onMouseMove(static_cast<float>(x), static_cast<float>(y));
+    });
 }
 
 void glfwApp::initVulkan() {
@@ -95,8 +121,13 @@ void glfwApp::initVulkanInst() {
     createInfo.enabledExtensionCount = extensionNames.size();
     createInfo.ppEnabledExtensionNames = extensionNames.data();
 
-    createInfo.enabledLayerCount = 0;
-    createInfo.ppEnabledLayerNames = nullptr;
+    if (!enableValidationLayers) {
+        createInfo.enabledLayerCount = 0;
+        createInfo.ppEnabledLayerNames = nullptr;
+    } else {
+        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        createInfo.ppEnabledLayerNames = validationLayers.data();
+    }
 
     VkResult result = vkCreateInstance(&createInfo, nullptr, &instance);
     if (result != VK_SUCCESS)
@@ -137,6 +168,8 @@ void glfwApp::initVulkanDevice() {
 
         std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
         std::vector<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+        std::sort(uniqueQueueFamilies.begin(), uniqueQueueFamilies.end());
+        uniqueQueueFamilies.erase(std::unique(uniqueQueueFamilies.begin(), uniqueQueueFamilies.end()), uniqueQueueFamilies.end());
 
         float queuePriority = 1.0f;
         for (uint32_t queueFamily : uniqueQueueFamilies) {
@@ -425,4 +458,13 @@ VkSampleCountFlagBits glfwApp::getMaxUsableSampleCount() {
     if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
 
     return VK_SAMPLE_COUNT_1_BIT;
+}
+
+void glfwApp::onMouseButton(int button, int action, int mods) {
+}
+
+void glfwApp::onKeyDown(int key, int scancode, int action, int mods) {
+}
+
+void glfwApp::onMouseMove(float x, float y) {
 }

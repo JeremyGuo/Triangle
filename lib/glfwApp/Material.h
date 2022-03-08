@@ -19,6 +19,7 @@ namespace glfw {
         Texture* illumination;
         Texture* opacity;
         Texture* normal;
+//        Texture* bump;
 
         glfwApp* mApp;
 

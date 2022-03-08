@@ -9,6 +9,8 @@
 
 #include "common.h"
 
+#include <chrono>
+
 class Buffer;
 class Texture;
 namespace glfw {
@@ -41,10 +43,15 @@ namespace glfw {
         virtual void initialize();
         virtual void cleanup();
         void run();
+
+        virtual void onKeyDown(int key, int scancode, int action, int mods);
+        virtual void onMouseMove(float x, float y);
+        virtual void onMouseButton(int button, int action, int mods);
     protected:
         friend class Buffer;
         friend class Texture;
         friend class Shader;
+        friend class Instance;
         void initWindow();
 
         void initVulkan();
@@ -87,5 +94,8 @@ namespace glfw {
         VkFormat swapChainImageFormat;
         VkExtent2D swapChainExtent{};
         std::vector<VkImageView> swapChainImageViews;
+
+        float deltaTime;
+        std::chrono::high_resolution_clock::time_point lastCallUpdate;
     };
 }

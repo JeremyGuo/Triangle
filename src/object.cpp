@@ -12,20 +12,23 @@
 #include <Vertex.h>
 #include <SubMesh.h>
 #include <Mesh.h>
+#include <Instance.h>
 
 #include <unordered_map>
 #include <Shader.h>
+#include <Camera.h>
 
+//const std::string MODEL_PATH = "../../San_Miguel/san-miguel-low-poly.obj";
 const std::string MODEL_PATH = "../models/viking_room.obj";
 const std::string TEXTURE_PATH = "../textures/viking_room.png";
 
 struct UniformBufferObject {
-    glm::mat4 model;
     glm::mat4 view;
     glm::mat4 proj;
 };
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
+const int MAX_MESH = 1;
 
 struct FrameVkInfo {
     VkCommandBuffer commandBuffer;
@@ -43,8 +46,6 @@ public:
     ~MyApp() override;
 
 protected:
-    friend class Buffer;
-
     void onDraw() override;
     void onUpdate() override;
 
@@ -59,11 +60,16 @@ protected:
     void initDescriptorSets();
     void initTexture();
     void initSyncObjects();
+    void initCamera();
 
     void cleanupSwapChain() override;
     void recreateSwapChain() override;
 
-    void recordCommandBuffer(VkCommandBuffer cb, int imageIndex, VkDescriptorSet &descriptorSet);
+    void onKeyDown(int key, int scancode, int action, int mods) override;
+    void onMouseMove(float x, float y) override;
+    void onMouseButton(int button, int action, int mods) override;
+
+    void recordCommandBuffer(VkCommandBuffer cb, int currentFrame, int imageIndex, VkDescriptorSet &descriptorSet);
     VkFormat findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
     VkFormat findDepthFormat();
 
@@ -73,10 +79,12 @@ protected:
     std::vector<VkFramebuffer> swapChainFramebuffers;
     VkCommandPool commandPool;
 
-    glfw::Mesh mesh;
+//    glfw::Mesh mesh;
+    std::vector<glfw::Instance*> instances;
     std::vector<glfw::Buffer*> uniformBuffers;
 
     VkDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorSetLayout instDescriptorSetLayout;
     std::vector<VkDescriptorSet> descriptorSets;
 
     VkDescriptorPool descriptorPool;
@@ -85,9 +93,22 @@ protected:
 
     glfw::Texture texture;
     glfw::Texture depth;
+
+    bool mWPressed = false;
+    bool mAPressed = false;
+    bool mSPressed = false;
+    bool mDPressed = false;
+    bool mLShiftPressed = false;
+    bool mMouseRPressed = false;
+    bool mMouseLPressed = false;
+
+    glm::vec2 cursor = {0.0, 0.0};
+    glm::vec2 cursorDelta = {0.0, 0.0};
+
+    glfw::Camera mainCamera;
 };
 
-MyApp::MyApp():glfwApp(), mesh(this),
+MyApp::MyApp():glfwApp(),
     texture(this), depth(this) {
 }
 
@@ -95,15 +116,17 @@ MyApp::~MyApp() {
 }
 
 void MyApp::cleanup() {
+    {
+        for (glfw::Instance* & inst : instances)
+            inst->destroy(1);
+        instances.resize(0);
+        texture.destroy();
+    }
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     for (auto &frame : frameInfos) {
         vkDestroySemaphore(device, frame.imageAvailableSemaphore, nullptr);
         vkDestroySemaphore(device, frame.renderFinishedSemaphore, nullptr);
         vkDestroyFence(device, frame.inFlightFence, nullptr);
-    }
-    {
-        mesh.destroy();
-        texture.destroy();
     }
     vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
     vkDestroyCommandPool(device, commandPool, nullptr);
@@ -139,18 +162,23 @@ void MyApp::initialize() {
         this->initCommandPool();
         this->initDepthBuffer();
         this->initFramebuffers();
-        mesh.loadObject(MODEL_PATH.c_str(), commandPool, graphicsQueue);
+        fprintf(stdout, "Loading Model\n");
+        instances.push_back(new glfw::Instance(this, new glfw::Mesh(this)));
+        instances[0]->mMesh->loadObject(MODEL_PATH.c_str(), commandPool, graphicsQueue);
+        fprintf(stdout, "Model Loaded\n");
         this->initTexture();
         this->initBuffers();
         this->initDescriptorPool();
         this->initDescriptorSets();
+        instances[0]->initGPUMemory(descriptorPool, instDescriptorSetLayout, commandPool, graphicsQueue, MAX_FRAMES_IN_FLIGHT);
         this->initSyncObjects();
+        this->initCamera();
     } catch(...) {
         std::throw_with_nested(std::runtime_error("failed to init myApp"));
     }
 }
 
-void MyApp::recordCommandBuffer(VkCommandBuffer cb, int imageIndex, VkDescriptorSet& descriptorSet) {
+void MyApp::recordCommandBuffer(VkCommandBuffer cb, int currentFrame, int imageIndex, VkDescriptorSet& descriptorSet) {
     /**
          * Record Command
          */
@@ -175,13 +203,20 @@ void MyApp::recordCommandBuffer(VkCommandBuffer cb, int imageIndex, VkDescriptor
     vkCmdBeginRenderPass(cb, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-    for (auto& submesh : mesh.submesh) {
-        VkBuffer vertexBuffers[] = {submesh->vertex->getBuffer()};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(cb, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(cb, submesh->indice->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-        vkCmdDrawIndexed(cb, submesh->numIndices, 1, 0, 0, 0);
+    for (auto &inst : instances) {
+        std::array<VkDescriptorSet, 2> curDescriptorSets = {
+                inst->getModelDescriptorSet(currentFrame),
+                descriptorSet
+        };
+        for (auto &submesh: inst->mMesh->submesh) {
+            VkBuffer vertexBuffers[] = {submesh->vertex->getBuffer()};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(cb, 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(cb, submesh->indice->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, curDescriptorSets.size(), curDescriptorSets.data(), 0,
+                                    nullptr);
+            vkCmdDrawIndexed(cb, submesh->numIndices, 1, 0, 0, 0);
+        }
     }
 
     vkCmdEndRenderPass(cb);
@@ -202,7 +237,7 @@ void MyApp::onDraw() {
     vkResetFences(device, 1, &frameInfos[currentFrame].inFlightFence);
 
     vkResetCommandBuffer(frameInfos[currentFrame].commandBuffer, 0);
-    recordCommandBuffer(frameInfos[currentFrame].commandBuffer, imageIndex, descriptorSets[currentFrame]);
+    recordCommandBuffer(frameInfos[currentFrame].commandBuffer, currentFrame, imageIndex, descriptorSets[currentFrame]);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -242,17 +277,41 @@ void MyApp::onDraw() {
     currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
+#include <iostream>
+
 void MyApp::onUpdate() {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
     UniformBufferObject ubo{};
-    ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
-    ubo.proj[1][1] *= -1;
+
+    if (mMouseRPressed) {
+        float moveForward = 0.0f;
+        float moveRight = 0.0f;
+        if (mWPressed)
+            moveForward += 1.0f;
+        if (mSPressed)
+            moveForward -= 1.0f;
+        if (mAPressed)
+            moveRight -= 1.0f;
+        if (mDPressed)
+            moveRight += 1.0f;
+        moveForward *= deltaTime * 2.5f;
+        moveRight *= deltaTime * 2.5f;
+        if (mLShiftPressed) {
+            moveForward *= 4;
+            moveRight *= 4;
+        }
+        mainCamera.Move(moveRight, moveForward);
+
+        mainCamera.Rotate(-cursorDelta.x * deltaTime * 400.0f, cursorDelta.y * deltaTime * 400.0f);
+    } else if (mMouseLPressed) {
+        mainCamera.Rotate(-cursorDelta.x * deltaTime * 400.0f, cursorDelta.y * deltaTime * 400.0f);
+    }
+    this->cursorDelta = glm::vec2(0.0, 0.0);
+
+//    ubo.view = glm::lookAt(camera_pos, camera_pos + look_dir, glm::vec3(0.0f, 0.0f, 1.0f));
+//    ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+//    ubo.proj[1][1] *= -1;
+    ubo.view = mainCamera.GetTransform();
+    ubo.proj = mainCamera.GetProjection();
     uniformBuffers[currentFrame]->uploadData(&ubo, sizeof(ubo));
 }
 
@@ -341,10 +400,14 @@ void MyApp::initGraphicsPipeline() {
     colorBlending.blendConstants[3] = 0.0f; // Optional
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    std::array<VkDescriptorSetLayout, 2> setLayouts = {
+            instDescriptorSetLayout,
+            descriptorSetLayout
+    };
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1; // Optional
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Optional
-    pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
+    pipelineLayoutInfo.setLayoutCount = setLayouts.size(); // Optional
+    pipelineLayoutInfo.pSetLayouts = setLayouts.data(); // Optional
+    pipelineLayoutInfo.pushConstantRangeCount = 0; // Optionala
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
     if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
@@ -556,35 +619,55 @@ void MyApp::initBuffers() {
 }
 
 void MyApp::initDescriptorSetLayout() {
-    VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // This binding is accessable from VERTEX stage
-    uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+    {
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // This binding is accessable from VERTEX stage
+        uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
 
-    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-    samplerLayoutBinding.binding = 1;
-    samplerLayoutBinding.descriptorCount = 1;
-    samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    samplerLayoutBinding.pImmutableSamplers = nullptr;
-    samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        VkDescriptorSetLayoutBinding samplerLayoutBinding{}; //diffuse
+        samplerLayoutBinding.binding = 1;
+        samplerLayoutBinding.descriptorCount = 1;
+        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerLayoutBinding.pImmutableSamplers = nullptr;
+        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-    layoutInfo.pBindings = bindings.data();
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
 
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor set layout!");
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create descriptor set layout!");
+        }
+    }
+    {
+        VkDescriptorSetLayoutBinding modelLayoutBinding{};
+        modelLayoutBinding.binding = 0;
+        modelLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        modelLayoutBinding.descriptorCount = 1;
+        modelLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        modelLayoutBinding.pImmutableSamplers = nullptr; // Optional
+
+        std::array<VkDescriptorSetLayoutBinding, 1> bindings = {modelLayoutBinding};
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
+
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &instDescriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create descriptor set layout!");
+        }
     }
 }
 
 void MyApp::initDescriptorPool() {
     std::array<VkDescriptorPoolSize, 2> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * (1 + MAX_MESH));
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
@@ -592,7 +675,7 @@ void MyApp::initDescriptorPool() {
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT); // Usage ?
+    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * (1 + MAX_MESH)); // Usage ?
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
@@ -710,4 +793,54 @@ void MyApp::initDepthBuffer() {
     } catch (...) {
         std::throw_with_nested(std::runtime_error("failed to create depth texture"));
     }
+}
+
+void MyApp::onKeyDown(int key, int scancode, int action, int mods) {
+    bool n_val = action == GLFW_PRESS;
+    switch(key) {
+        case GLFW_KEY_W:
+            mWPressed = n_val;
+            break;
+        case GLFW_KEY_A:
+            mAPressed = n_val;
+            break;
+        case GLFW_KEY_S:
+            mSPressed = n_val;
+            break;
+        case GLFW_KEY_D:
+            mDPressed = n_val;
+            break;
+        case GLFW_KEY_LEFT_SHIFT:
+            mLShiftPressed = n_val;
+            break;
+    }
+}
+
+void MyApp::onMouseMove(float x, float y) {
+    glm::vec2 newCursor = {x, y};
+    this->cursorDelta = newCursor - this->cursor;
+    this->cursor = newCursor;
+}
+
+void MyApp::onMouseButton(int button, int action, int mods) {
+    bool n_val = action == GLFW_PRESS;
+    switch (button) {
+        case GLFW_MOUSE_BUTTON_LEFT:
+            mMouseLPressed = n_val;
+            break;
+        case GLFW_MOUSE_BUTTON_RIGHT:
+            mMouseRPressed = n_val;
+            break;
+    }
+}
+
+void MyApp::initCamera() {
+    mainCamera.SetPosition(glm::vec3(2.0, 2.0, 2.0));
+    glfw::Recti rect;
+    rect.bottom = swapChainExtent.height;
+    rect.top = 0;
+    rect.left = 0;
+    rect.right = swapChainExtent.width;
+    mainCamera.SetViewport(rect);
+    mainCamera.LookAt(glm::vec3(2.0, 2.0, 2.0), glm::vec3(0.0f));
 }
