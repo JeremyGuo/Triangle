@@ -5,6 +5,7 @@
 #include "Mesh.h"
 #include "SubMesh.h"
 #include "glfwApp.h"
+#include "TextureManager.h"
 
 namespace glfw {
     Mesh::Mesh(glfwApp *app) {
@@ -39,6 +40,12 @@ namespace glfw {
         std::vector<Vertex> tmp_vert;
 
         fprintf(stdout, "Decoding Mesh\n");
+
+        mMats.resize(materials.size());
+        for (auto& mat : materials) {
+            std::cout << "TEX:" << mat.diffuse_texname << std::endl;
+            mMats.push_back(mApp->textureManager->getTexture(mat.diffuse_texname.c_str(), commandPool, graphicsQueue));
+        }
 
         for (auto& shape : shapes) {
             SubMesh* smesh = new SubMesh(mApp);

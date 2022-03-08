@@ -21,6 +21,7 @@ namespace glfw {
     class glfwApp;
     class Buffer;
     class SubMesh;
+    class Texture;
     class Mesh {
     public:
         Mesh(glfwApp* app);
@@ -32,6 +33,7 @@ namespace glfw {
 
         Buffer* vertexBuffer;
         std::vector<SubMesh*> submesh;
+        std::vector<Texture*> mMats;
     private:
         glfwApp* mApp;
     };

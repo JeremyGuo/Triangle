@@ -11,9 +11,9 @@
 
 #include <chrono>
 
-class Buffer;
-class Texture;
 namespace glfw {
+    class TextureManager;
+
     static
     const std::vector<const char*> vkDeviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -52,6 +52,8 @@ namespace glfw {
         friend class Texture;
         friend class Shader;
         friend class Instance;
+        friend class Mesh;
+        friend class SubMesh;
         void initWindow();
 
         void initVulkan();
@@ -97,5 +99,7 @@ namespace glfw {
 
         float deltaTime;
         std::chrono::high_resolution_clock::time_point lastCallUpdate;
+
+        TextureManager *textureManager;
     };
 }

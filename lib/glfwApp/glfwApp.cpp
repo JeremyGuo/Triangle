@@ -4,13 +4,14 @@
 
 #include "glfwApp.h"
 #include <chrono>
+#include <TextureManager.h>
 using namespace glfw;
 
 const std::vector<const char*> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
 };
 
-const bool enableValidationLayers = true;
+const bool enableValidationLayers = false;
 
 bool QueueFamilyIndices::isComplete() const {
     return graphicsFamily.has_value() && presentFamily.has_value();
@@ -29,6 +30,8 @@ void glfwApp::cleanup() {
     }
     vkDestroySwapchainKHR(device, swapChain, nullptr);
     vkDestroySurfaceKHR(instance, surface, nullptr);
+    delete this->textureManager;
+    this->textureManager = nullptr;
     vkDestroyDevice(device, nullptr);
     vkDestroyInstance(instance, nullptr);
     glfwDestroyWindow(window);
@@ -91,6 +94,8 @@ void glfwApp::initVulkan() {
         this->initSurface();
         this->initVulkanDevice();
         this->initSwapChain();
+
+        this->textureManager = new TextureManager(this);
     } catch (...) {
         std::throw_with_nested(std::runtime_error("Failed to initialize Vulkan"));
     }

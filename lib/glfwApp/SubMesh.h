@@ -31,6 +31,7 @@ namespace glfw {
         char* mat_name;
 
         glfwApp* mApp;
+        std::vector<uint32_t> matIDs;
 
         SubMesh(glfwApp* app);
         virtual ~SubMesh();

@@ -22,12 +22,6 @@ namespace glfw {
 //        Texture* bump;
 
         glfwApp* mApp;
-
-        void destroy();
-        void loadDiffuse(const char* filename, VkCommandPool commandPool, VkQueue graphicsQueue);
-        void loadIllumination(const char* filename, VkCommandPool commandPool, VkQueue graphicsQueue);
-        void loadOpacity(const char* filename, VkCommandPool commandPool, VkQueue graphicsQueue);
-        void loadNormal(const char* filename, VkCommandPool commandPool, VkQueue graphicsQueue);
     };
 }
 

@@ -47,23 +47,32 @@ namespace glfw {
         this->vertex = vert_buffer;
         std::unordered_map<Vertex, uint32_t> uniqueVertices;
         std::vector<uint32_t> indices;
-        for (const auto& index : shape.mesh.indices) {
-            Vertex vertex{};
-            vertex.pos = {
-                    attrib.vertices[3 * index.vertex_index + 0],
-                    attrib.vertices[3 * index.vertex_index + 2],
-                    attrib.vertices[3 * index.vertex_index + 1]
-            };
-            vertex.texCoord = {
-                    attrib.texcoords[2 * index.texcoord_index + 0],
-                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-            };
-            vertex.color = {1.0f, 1.0f, 1.0f};
-            if (uniqueVertices.count(vertex) == 0) {
-                uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-                vertices.push_back(vertex);
+
+        int idx = 0;
+        assert(shape.mesh.material_ids.size() == shape.mesh.num_face_vertices.size());
+        matIDs.resize(shape.mesh.material_ids.size());
+        for (int fidx = 0; fidx < shape.mesh.num_face_vertices.size(); fidx ++) {
+            for (int j = 0; j < 3; idx ++, j ++) {
+                auto &index = shape.mesh.indices[idx];
+                Vertex vertex{};
+
+                vertex.pos = {
+                        attrib.vertices[3 * index.vertex_index + 0],
+                        attrib.vertices[3 * index.vertex_index + 2],
+                        attrib.vertices[3 * index.vertex_index + 1]
+                };
+                vertex.texCoord = {
+                        attrib.texcoords[2 * index.texcoord_index + 0],
+                        1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+                };
+                vertex.color = {1.0f, 1.0f, 1.0f};
+                if (uniqueVertices.count(vertex) == 0) {
+                    uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+                    vertices.push_back(vertex);
+                }
+                indices.push_back(uniqueVertices[vertex]);
             }
-            indices.push_back(uniqueVertices[vertex]);
+            matIDs[fidx] = static_cast<uint32_t>(shape.mesh.material_ids[fidx]);
         }
         this->indice = new glfw::Buffer(mApp);
         {
