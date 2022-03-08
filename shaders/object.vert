@@ -1,10 +1,14 @@
 #version 450
+// Set 0: Global Set
+// Set 1: Instance Set
+// Set 2: SubMesh Set
+// Set 3: Texture Set
+// Set 4: Material Set (Not used now)
 
-layout(set = 0, binding = 0) uniform Model {
+layout(set = 1, binding = 0) uniform Model {
     mat4 model;
 } model;
-
-layout(set = 1, binding = 0) uniform UniformBufferObject {
+layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
 } ubo;

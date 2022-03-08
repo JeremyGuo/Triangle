@@ -16,11 +16,19 @@ namespace glfw {
         TextureManager(glfwApp* app);
         virtual ~TextureManager();
 
-        Texture* getTexture(const char* name, VkCommandPool commandPool, VkQueue graphicsQueue);
+        int getTexture(const char* name, VkCommandPool commandPool, VkQueue graphicsQueue);
+
+        int getTexutreNum();
+        void initDescriptorSet(); // TODO
+        VkDescriptorSet getDescriptorSet(int frame);
 
         void destroy();
     private:
-        std::unordered_map<std::string, Texture*> mTextures;
+        std::unordered_map<std::string, int> mTextureIds;
+        std::vector<Texture*> mTextures;
+
+        std::vector<VkDescriptorSet> descriptorSets;
+
         glfwApp* mApp;
     };
 }

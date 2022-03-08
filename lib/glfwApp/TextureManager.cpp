@@ -16,18 +16,31 @@ namespace glfw {
     }
 
     void TextureManager::destroy() {
-        for (auto& p : mTextures) {
-            p.second->destroy();
-        }
+        for (auto& p : mTextures)
+            p->destroy();
         mTextures.clear();
+        mTextureIds.clear();
     }
 
-    Texture* TextureManager::getTexture(const char *name, VkCommandPool commandPool, VkQueue graphicsQueue) {
-        if (this->mTextures.count(std::string(name)))
-            return this->mTextures[std::string(name)];
+    int TextureManager::getTexutreNum() {
+        return mTextures.size();
+    }
+
+    VkDescriptorSet TextureManager::getDescriptorSet(int frame) {
+        return descriptorSets[frame];
+    }
+
+    int TextureManager::getTexture(const char *name, VkCommandPool commandPool, VkQueue graphicsQueue) {
+        if (this->mTextureIds.count(std::string(name)))
+            return this->mTextureIds[std::string(name)];
         Texture* nTexture = new Texture(mApp);
         nTexture->load(name, commandPool, graphicsQueue);
-        this->mTextures[std::string(name)] = nTexture;
-        return nTexture;
+        int ret = this->mTextures.size();
+        this->mTextureIds[std::string(name)] = ret;
+        this->mTextures.push_back(nTexture);
+
+        // TODO: init sampler & Image View
+
+        return ret;
     }
 }

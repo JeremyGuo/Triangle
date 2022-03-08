@@ -13,6 +13,7 @@
 
 namespace glfw {
     class TextureManager;
+    class MeshManager;
 
     static
     const std::vector<const char*> vkDeviceExtensions = {
@@ -101,5 +102,6 @@ namespace glfw {
         std::chrono::high_resolution_clock::time_point lastCallUpdate;
 
         TextureManager *textureManager;
+        MeshManager *meshManager;
     };
 }

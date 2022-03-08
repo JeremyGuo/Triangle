@@ -5,6 +5,7 @@
 #include "glfwApp.h"
 #include <chrono>
 #include <TextureManager.h>
+#include <MeshManager.h>
 using namespace glfw;
 
 const std::vector<const char*> validationLayers = {
@@ -32,6 +33,8 @@ void glfwApp::cleanup() {
     vkDestroySurfaceKHR(instance, surface, nullptr);
     delete this->textureManager;
     this->textureManager = nullptr;
+    delete this->meshManager;
+    this->meshManager = nullptr;
     vkDestroyDevice(device, nullptr);
     vkDestroyInstance(instance, nullptr);
     glfwDestroyWindow(window);
@@ -96,6 +99,7 @@ void glfwApp::initVulkan() {
         this->initSwapChain();
 
         this->textureManager = new TextureManager(this);
+        this->meshManager = new MeshManager(this);
     } catch (...) {
         std::throw_with_nested(std::runtime_error("Failed to initialize Vulkan"));
     }

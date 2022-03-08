@@ -83,8 +83,10 @@ protected:
     std::vector<glfw::Instance*> instances;
     std::vector<glfw::Buffer*> uniformBuffers;
 
-    VkDescriptorSetLayout descriptorSetLayout;
-    VkDescriptorSetLayout instDescriptorSetLayout;
+    VkDescriptorSetLayout globalDescSetLayout;
+    VkDescriptorSetLayout meshDescSetLayout;
+    VkDescriptorSetLayout subMeshDescSetLayout;
+
     std::vector<VkDescriptorSet> descriptorSets;
 
     VkDescriptorPool descriptorPool;
@@ -128,7 +130,11 @@ void MyApp::cleanup() {
         vkDestroySemaphore(device, frame.renderFinishedSemaphore, nullptr);
         vkDestroyFence(device, frame.inFlightFence, nullptr);
     }
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+    vkDestroyDescriptorSetLayout(device, globalDescSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device, meshDescSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device, subMeshDescSetLayout, nullptr);
+
     vkDestroyCommandPool(device, commandPool, nullptr);
     depth.destroy();
     for (size_t i = 0; i < swapChainFramebuffers.size(); i++) {
@@ -166,11 +172,11 @@ void MyApp::initialize() {
         instances.push_back(new glfw::Instance(this, new glfw::Mesh(this)));
         instances[0]->mMesh->loadObject(MODEL_PATH.c_str(), commandPool, graphicsQueue);
         fprintf(stdout, "Model Loaded\n");
-        this->initTexture();
+//        this->initTexture();
         this->initBuffers();
         this->initDescriptorPool();
         this->initDescriptorSets();
-        instances[0]->initGPUMemory(descriptorPool, instDescriptorSetLayout, commandPool, graphicsQueue, MAX_FRAMES_IN_FLIGHT);
+//        instances[0]->initGPUMemory(descriptorPool, meshDescSetLayout, commandPool, graphicsQueue, MAX_FRAMES_IN_FLIGHT); // TODO: add submesh desc
         this->initSyncObjects();
         this->initCamera();
     } catch(...) {
@@ -400,9 +406,10 @@ void MyApp::initGraphicsPipeline() {
     colorBlending.blendConstants[3] = 0.0f; // Optional
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    std::array<VkDescriptorSetLayout, 2> setLayouts = {
-            instDescriptorSetLayout,
-            descriptorSetLayout
+    std::array<VkDescriptorSetLayout, 3> setLayouts = {
+            globalDescSetLayout,
+            meshDescSetLayout,
+            subMeshDescSetLayout
     };
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = setLayouts.size(); // Optional
@@ -620,6 +627,7 @@ void MyApp::initBuffers() {
 
 void MyApp::initDescriptorSetLayout() {
     {
+        // Global Set
         VkDescriptorSetLayoutBinding uboLayoutBinding{};
         uboLayoutBinding.binding = 0;
         uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -627,47 +635,69 @@ void MyApp::initDescriptorSetLayout() {
         uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // This binding is accessable from VERTEX stage
         uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
 
-        VkDescriptorSetLayoutBinding samplerLayoutBinding{}; //diffuse
-        samplerLayoutBinding.binding = 1;
-        samplerLayoutBinding.descriptorCount = 1;
-        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.pImmutableSamplers = nullptr;
-        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
+        std::array<VkDescriptorSetLayoutBinding, 1> bindings = {uboLayoutBinding};
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
         layoutInfo.pBindings = bindings.data();
 
-        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &globalDescSetLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor set layout!");
         }
     }
-    {
-        VkDescriptorSetLayoutBinding modelLayoutBinding{};
-        modelLayoutBinding.binding = 0;
-        modelLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        modelLayoutBinding.descriptorCount = 1;
-        modelLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        modelLayoutBinding.pImmutableSamplers = nullptr; // Optional
 
-        std::array<VkDescriptorSetLayoutBinding, 1> bindings = {modelLayoutBinding};
+    {
+        // Instance / Mesh Set
+        VkDescriptorSetLayoutBinding modelMatBinding{};
+        modelMatBinding.binding = 0;
+        modelMatBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        modelMatBinding.descriptorCount = 1;
+        modelMatBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // This binding is accessable from VERTEX stage
+        modelMatBinding.pImmutableSamplers = nullptr; // Optional
+
+        uint32_t numMaterials = 0;
+        for (auto &inst : instances) {
+//            if (inst->getNumMaterial() > numMaterials)
+//                numMaterials = inst->getNumMaterial(); // TODO
+        }
+        VkDescriptorSetLayoutBinding samplersBinding{};
+        samplersBinding.binding = 1;
+        samplersBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplersBinding.descriptorCount = numMaterials;
+        samplersBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        samplersBinding.pImmutableSamplers = nullptr; // Optional
+
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {modelMatBinding, samplersBinding};
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
         layoutInfo.pBindings = bindings.data();
 
-        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &instDescriptorSetLayout) != VK_SUCCESS) {
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &meshDescSetLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor set layout!");
         }
+    }
+
+    {
+        // Submesh Set
+        VkDescriptorSetLayoutBinding matIDBinding{};
+        matIDBinding.binding = 0;
+        matIDBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        matIDBinding.descriptorCount = 1;
+        matIDBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; // This binding is accessable from VERTEX stage
+        matIDBinding.pImmutableSamplers = nullptr; // Optional
     }
 }
 
 void MyApp::initDescriptorPool() {
+    int meshNeedUniform = 0;
+    for (auto &inst : instances) {
+        meshNeedUniform += 1 + inst->mMesh->submesh.size();
+    }
+
     std::array<VkDescriptorPoolSize, 2> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * (1 + MAX_MESH));
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * (1 + meshNeed));
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
@@ -675,7 +705,7 @@ void MyApp::initDescriptorPool() {
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * (1 + MAX_MESH)); // Usage ?
+    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * (1 + meshNeed)); // Usage ?
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
@@ -684,7 +714,7 @@ void MyApp::initDescriptorPool() {
 
 void MyApp::initDescriptorSets() {
     try {
-        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, globalDescSetLayout);
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = descriptorPool;
@@ -701,12 +731,12 @@ void MyApp::initDescriptorSets() {
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(UniformBufferObject);
 
-            VkDescriptorImageInfo imageInfo{};
-            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            imageInfo.imageView = texture.getImageView();
-            imageInfo.sampler = texture.getSampler();
+//            VkDescriptorImageInfo imageInfo{};
+//            imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+//            imageInfo.imageView = texture.getImageView();
+//            imageInfo.sampler = texture.getSampler();
 
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+            std::array<VkWriteDescriptorSet, 1> descriptorWrites{};
 
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             descriptorWrites[0].dstSet = descriptorSets[i];
@@ -716,15 +746,19 @@ void MyApp::initDescriptorSets() {
             descriptorWrites[0].descriptorCount = 1;
             descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrites[1].dstSet = descriptorSets[i];
-            descriptorWrites[1].dstBinding = 1;
-            descriptorWrites[1].dstArrayElement = 0;
-            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            descriptorWrites[1].descriptorCount = 1;
-            descriptorWrites[1].pImageInfo = &imageInfo;
+//            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+//            descriptorWrites[1].dstSet = descriptorSets[i];
+//            descriptorWrites[1].dstBinding = 1;
+//            descriptorWrites[1].dstArrayElement = 0;
+//            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+//            descriptorWrites[1].descriptorCount = 1;
+//            descriptorWrites[1].pImageInfo = &imageInfo;
 
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+
+            for (auto& inst : instances) {
+//                inst->initDescriptorSet(); // TODO
+            }
         }
     } catch(...) {
         std::throw_with_nested("failed to create descriptor sets");
